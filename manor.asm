@@ -66,7 +66,6 @@ res 3,c ; reset repetition bit
 cp (hl) : cp (hl) : ld a,r ; original tempo
 jp rebiqueBis
 
-print 'duree entre deux samples = ',manoir/2
 
 confine 8
 deltaSampleConversion
