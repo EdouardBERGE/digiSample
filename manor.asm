@@ -2,14 +2,51 @@
 buildsna
 bankset 0
 
+org #38
+ei : ret
+
 org #100
 run #100
-ld hl,leSample
-ld de,laFin-leSample
-call playSampleRoutine
-jr $
 
-playSampleRoutine
+ld sp,#100
+
+; playing sample first run
+ld bc,#7F10 : out (c),c : ld bc,#7F54 : out (c),c ; noir
+ld hl,leSample
+ld de,(laFin-leSample)>>4 ; play 1/16 of the sample
+call playSampleRoutine
+
+ld xl,15
+split16
+ld bc,#7F10 : out (c),c : ld a,r : and 31 : add #40 : out (c),a ; couleur aléatoire
+; effacer un petit morceau de mémoire pour voir si la coupure s'entend
+ld l,#C0
+ld a,r : or #C0 : ld h,a
+.randMem ld a,r : ld (hl),a : inc l : jr nz,.randMem
+ld de,(laFin-leSample)>>4 ; play next 1/16
+call playSampleContinue
+dec xl
+jr nz,split16
+
+; done
+jr $ ; infinite loop
+
+;==================================
+        playSampleContinue
+;==================================
+; call this with DE = length to play from last known position
+di
+exx
+playSample_BCX ld bc,#1234
+exx
+playSample_HL ld hl,#1234
+playSample_A ld a,#12
+ld b,#F6
+jr playSample
+
+;==================================
+        playSampleRoutine
+;==================================
 ; ripped from MORTEVIELLE MANOR sample replay
 ; average sample rate is 71 nops => 15KHz replay
 ; it's useless to stabilize machine time for this
@@ -53,6 +90,12 @@ bit 3,c ; tester la répétition du delta
 jr nz,ajusteSampleBis
 ld a,e : or a : jp nz,playSample
 ld a,d : or a : jp nz,playSample
+
+; store data in case we want to go further in the sample
+ld (playSample_HL+1),hl ; current data sample
+ld (playSample_A+1),a ; current volume
+exx
+ld (playSample_BCX+1),bc
 ei
 ret
 
