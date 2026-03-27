@@ -4,6 +4,20 @@
 #include<errno.h>
 #include<math.h>
 
+#if defined(_WIN32) || defined(__WIN32__) || defined(_MSC_VER) || defined(_WIN64) || defined(__WIN64__)
+#define OS_WIN 1
+#define ABORT_ERROR -1
+#define M_PI 3.1415926545
+        #include<io.h>
+        #include<fcntl.h>
+        #include<limits.h>
+        #include<direct.h>
+        #include<windows.h>
+        #include<strsafe.h>
+        #include<sys/types.h>
+        #include<sys/stat.h>
+#endif
+
 enum
 {
     O32_LITTLE_ENDIAN = 0x03020100ul,
@@ -68,6 +82,16 @@ double *load_wav(char *filename, int *n, double *acqui) {
 		fprintf(stderr,"file [%s] not found\n",filename);
 		return NULL;
 	}
+#ifdef OS_WIN
+{int sr;
+sr=_setmode(_fileno(f), _O_BINARY );
+if (sr==-1) {
+fprintf(stderr,"FATAL: cannot set binary mode for reading");
+exit(ABORT_ERROR);
+}
+}
+#endif
+
 	fseek(f,0,SEEK_END);
 	filesize=ftell(f);
 	fseek(f,0,SEEK_SET);
@@ -126,28 +150,28 @@ double *load_wav(char *filename, int *n, double *acqui) {
         if (wFormat!=1 && wFormat!=3) {
                 fprintf(stderr,"WAV import - invalid or unsupported wFormatTag (%04X) ",wFormat);
 		switch (wFormat) {
-			case -2:fprintf(stderr,"Extensible Format (user defined) \n");
+			case -2:fprintf(stderr,"Extensible Format (user defined) \n");break;
 			default:
-			case 0:fprintf(stderr,"	Unknown Format\n");
-			case 1:fprintf(stderr,"	PCM format (8 or 16 bit), Microsoft Corporation\n");
-			case 2:fprintf(stderr,"	AD PCM Format, Microsoft Corporation\n");
-			case 3:fprintf(stderr,"	IEEE PCM Float format (32 bit)\n");
-			case 48:fprintf(stderr,"AC2, Dolby Laboratories\n");
-			case 49:fprintf(stderr,"GSM 6.10, Microsoft Corporation\n");
-			case 50:fprintf(stderr,"MSN Audio, Microsoft Corporation\n");
-			case 80:fprintf(stderr,"MPEG format\n");
-			case 85:fprintf(stderr,"ISO/MPEG Layer3 Format\n");
-			case 146:fprintf(stderr,"AC3 Digital, Sonic Foundry\n");
-			case 255:fprintf(stderr,"Raw AAC\n");
-			case 352:fprintf(stderr,"Microsoft Corporation\n");
-			case 353:fprintf(stderr,"Windows Media Audio. This format is valid for versions 2 through 9\n");
-			case 354:fprintf(stderr,"Windows Media Audio 9 Professional\n");
-			case 355:fprintf(stderr,"Windows Media Audio 9 Lossless\n");
-			case 356:fprintf(stderr,"Windows Media SPDIF Digital Audio\n");
-			case 5632:fprintf(stderr,"ADTS AAC Audio\n");
-			case 5633:fprintf(stderr,"Raw AAC\n");
-			case 5634:fprintf(stderr,"MPEG-4 audio transport stream with a synchronization layer (LOAS) and a multiplex layer (LATM)\n");
-			case 5648:fprintf(stderr,"High-Efficiency Advanced Audio Coding (HE-AAC) stream\n");
+			case 0:fprintf(stderr,"	Unknown Format\n");break;
+			case 1:fprintf(stderr,"	PCM format (8 or 16 bit), Microsoft Corporation\n");break;
+			case 2:fprintf(stderr,"	AD PCM Format, Microsoft Corporation\n");break;
+			case 3:fprintf(stderr,"	IEEE PCM Float format (32 bit)\n");break;
+			case 48:fprintf(stderr,"AC2, Dolby Laboratories\n");break;
+			case 49:fprintf(stderr,"GSM 6.10, Microsoft Corporation\n");break;
+			case 50:fprintf(stderr,"MSN Audio, Microsoft Corporation\n");break;
+			case 80:fprintf(stderr,"MPEG format\n");break;
+			case 85:fprintf(stderr,"ISO/MPEG Layer3 Format\n");break;
+			case 146:fprintf(stderr,"AC3 Digital, Sonic Foundry\n");break;
+			case 255:fprintf(stderr,"Raw AAC\n");break;
+			case 352:fprintf(stderr,"Microsoft Corporation\n");break;
+			case 353:fprintf(stderr,"Windows Media Audio. This format is valid for versions 2 through 9\n");break;
+			case 354:fprintf(stderr,"Windows Media Audio 9 Professional\n");break;
+			case 355:fprintf(stderr,"Windows Media Audio 9 Lossless\n");break;
+			case 356:fprintf(stderr,"Windows Media SPDIF Digital Audio\n");break;
+			case 5632:fprintf(stderr,"ADTS AAC Audio\n");break;
+			case 5633:fprintf(stderr,"Raw AAC\n");break;
+			case 5634:fprintf(stderr,"MPEG-4 audio transport stream with a synchronization layer (LOAS) and a multiplex layer (LATM)\n");break;
+			case 5648:fprintf(stderr,"High-Efficiency Advanced Audio Coding (HE-AAC) stream\n");break;
 		}
 		free(data);
                 return NULL;
@@ -251,18 +275,31 @@ void passe_bande(double acqui,double basse,double haute,double *datain,double *d
         free(datatmp);
 }
 
-int getToken(int v) {
-	if (v>=8) return 7; else
-	if (v>=4) return 6; else
-	if (v>=2) return 5; else
-	if (v>=1) return 4; else
-	if (v==0) return 3; else
-	if (v<=-4) return 0; else
-	if (v<=-2) return 1; else
-		return 2;
+int getToken(int v, int pv, int agressive) {
+	if (agressive) {
+		if (v>=8) return 7; else
+		if (v>=7 && pv+8<16) return 7; else // souplesse sur la montée
+		if (v>=4) return 6; else
+		if (v>=3 && pv+4<16) return 6; else // bis
+		if (v>=2) return 5; else
+		if (v>=1) return 4; else
+		if (v==0) return 3; else
+		if (v<=-4) return 0; else
+		if (v<=-2) return 1; else
+			return 2;
+	} else {
+		if (v>=8) return 7; else
+		if (v>=4) return 6; else
+		if (v>=2) return 5; else
+		if (v>=1) return 4; else
+		if (v==0) return 3; else
+		if (v<=-4) return 0; else
+		if (v<=-2) return 1; else
+			return 2;
+	}
 }
 
-void do_sample(double *data,int nbsample, double preamp, double cutlow, double cuthigh, double acqui) {
+void do_sample(double *data,int nbsample, double preamp, double cutlow, double cuthigh, double acqui, int agressive) {
 	double *newdata;
 	unsigned char *dataout;
 	unsigned char volume[256];
@@ -322,7 +359,7 @@ void do_sample(double *data,int nbsample, double preamp, double cutlow, double c
 		v1=volume[(unsigned char)smp1];
 
 		// différence delta
-		tok=getToken(v1-pv);
+		tok=getToken(v1-pv,pv,agressive);
 		// on modifie la valeur courante (pour gérer les compensations)
 		pv+=delta[tok];
 		if (pv<0 || pv>15) {
@@ -333,6 +370,7 @@ void do_sample(double *data,int nbsample, double preamp, double cutlow, double c
 		dataout[o++]=tok;
 	}
 printf("%d tokens (should be %d as nbsample)\n",o,nbsample);
+
 	// compresser les tokens si repetitions
 	o1=0;o2=0;
 	while (o1+1<o) {
@@ -358,6 +396,17 @@ printf("%d tokens apres repack global\n",o1);
 {
 	FILE *f;
 	f=fopen("output.bin","wb");
+
+#ifdef OS_WIN
+{int sr;
+sr=_setmode(_fileno(f), _O_BINARY );
+if (sr==-1) {
+fprintf(stderr,"FATAL: cannot set binary mode for writing");
+exit(ABORT_ERROR);
+}
+}
+#endif
+
 	if (!f) {
 		printf("impossible d'ouvrir output.bin en ecriture\n");
 		exit(-1);
@@ -370,7 +419,14 @@ printf("%d tokens apres repack global\n",o1);
 
 
 void usage() {
-	printf("<wafile> -preamp -high -low\n");
+	printf("usage is :\n");
+	printf("    convert <wafile> <options>\n");
+	printf("options  :\n");
+	printf("    -preamp <multiplier> ; default 1.0\n");
+	printf("    -high <freq>         ; default 8000\n");
+	printf("    -low <freq>          ; default 10\n");
+	printf("    -agressive           ; try to optimize repetitions\n");
+	printf("\n");
 	exit(1);
 }
 
@@ -381,6 +437,7 @@ void main(int argc, char **argv) {
 	double cuthigh=4000;
 	double cutlow=10;
 	int ifilename=-1;
+	int agressive=0;
 	int nbsamples;
 	int i;
 
@@ -391,6 +448,8 @@ void main(int argc, char **argv) {
 			cuthigh=atof(argv[++i]);
 		} else if (strcmp(argv[i],"-low")==0 && i+1<argc) {
 			cutlow=atof(argv[++i]);
+		} else if (strcmp(argv[i],"-agressive")==0) {
+			agressive=1;
 		} else if (ifilename==-1) {
 			ifilename=i;
 		} else usage();
@@ -399,7 +458,7 @@ void main(int argc, char **argv) {
 	if (ifilename==-1) usage();
 
 	if ((data=load_wav(argv[ifilename],&nbsamples,&frequency))!=NULL) {
-		do_sample(data,nbsamples,preamp,cutlow,cuthigh,frequency);
+		do_sample(data,nbsamples,preamp,cutlow,cuthigh,frequency,agressive);
 	}
 }
 
