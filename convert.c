@@ -102,7 +102,10 @@ exit(ABORT_ERROR);
         }
 
 	data=(unsigned char *)malloc(filesize);
-	fread(data,1,filesize,f);
+	if (fread(data,1,filesize,f)!=filesize) {
+		fprintf(stderr,"read error\n");
+		exit(-1);
+	}
 	fclose(f);
 
         wav_header=(struct s_wav_header *)data;
