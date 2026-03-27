@@ -15,6 +15,6 @@ DE = length to play
 
 DE = length to play
 
-You can use this function after a first CALL to playSampleRoutine, then position and current volume is backup in order to continue later
+You can use this function after a first CALL to playSampleRoutine, then position and current volume are backuped in order to continue later
 
 
